@@ -30,11 +30,11 @@ Detailed installation instructions are available in [INSTALL.md](./INSTALL.md). 
 
 Software packages required:
 
-* nfdump
+* nfdump >= 1.7
 * rrdtool
 * git
 * composer
-* apache2
+* apache2 >= 2.4
 * php >= 8.1
 
 Apache modules required:
@@ -76,18 +76,17 @@ Nfsen-ng uses nfdump to read the nfcapd files. You can specify the location of t
 
 You should also have a look at the nfdump configuration file `/etc/nfdump.conf` and make sure that the `nfcapd` files are written to the correct location. The default location is `/var/nfdump/profiles_data`.
 
-Hhere is an example of an nfdump configuration:
+Here is an example of an nfdump configuration:
 
 ```ini
-options='-z -S 1 -T all -l /var/nfdump/profiles_data/live/<source> -p <port>'
+options='-z=lz4 -S 1 -w /var/nfdump/profiles_data/live/<source> -p <port>'
 ```
 
 where
 
 * `-z` is used to compress the nfcapd files
 * `-S 1` is used to specify the nfcapd directory structure
-* `-T all` is used to specify the extension of the nfcapd files
-* `-l` is used to specify the destination location of the nfcapd files
+* `-w` is used to specify the destination location of the nfcapd files
 * `-p` is used to specify the port of the nfcapd files.
 
 #### Nfcapd x Sfcapd
