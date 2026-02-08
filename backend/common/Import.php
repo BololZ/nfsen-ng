@@ -426,6 +426,7 @@ class Import {
 
         $nfdump->setFilter('dst port ' . $port);
         $nfdump->setOption('-s', 'dstport:p');
+        $nfdump->setOption('-o', 'csv');
         $nfdump->setOption('-r', $statsPath);
 
         try {
@@ -472,9 +473,14 @@ class Import {
         ];
 
         // process protocols
-        // Expected format: ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp (14 fields)
+        // Expected CSV format: ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp (14 fields)
         $flowsFound = false;
         foreach ($input as $i => $line) {
+            // Skip the command line (first element)
+            if ($i === 0) {
+                continue;
+            }
+            
             // Handle string lines (error messages, warnings, etc.)
             if (is_string($line)) {
                 // Try to parse as CSV if it looks like CSV data
@@ -490,25 +496,26 @@ class Import {
             }
             
             // At this point, $line should be an array (either from Nfdump.php or our string parsing)
-            if (!\is_array($line) || $line instanceof \Countable === false) {
+            if (!\is_array($line) || !isset($line[0])) {
                 if ($this->verbose) {
                     $this->d->log('Unexpected line type in nfdump output: ' . gettype($line), LOG_DEBUG);
                 }
                 continue;
-            } // skip anything uncountable
+            }
+            
+            // Skip header line
+            if ($line[0] === 'ts' || $line[0] === 'ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp') {
+                continue;
+            }
             
             // Debug: Log if field count doesn't match expected
             if ($this->verbose && \count($line) !== 14) {
-                $this->d->log('Unexpected field count in nfdump output: ' . \count($line) . ' (expected 14)', LOG_DEBUG);
+                $this->d->log('Unexpected field count in nfdump output: ' . \count($line) . ' (expected 14). Line: ' . print_r($line, true), LOG_DEBUG);
             }
             
             if (\count($line) !== 14) {
                 continue;
             } // skip anything invalid
-            
-            if ($line[0] === 'ts') {
-                continue;
-            } // skip header
 
             $proto = strtolower((string) $line[3]);
             
@@ -538,9 +545,16 @@ class Import {
             $this->d->log('No flows found for port ' . $port . ' in file ' . basename($statsPath), LOG_DEBUG);
         }
 
-        // write to database
-        if (Config::$db->write($data) === false) {
-            throw new \Exception('Error writing to ' . $statsPath);
+        // Only write to database if flows were actually found
+        // This prevents writing zero values when there's no data, allowing RRD to maintain proper NaN values
+        if ($flowsFound) {
+            if (Config::$db->write($data) === false) {
+                throw new \Exception('Error writing to ' . $statsPath);
+            }
+        } else {
+            if ($this->verbose) {
+                $this->d->log('Skipping RRD write for port ' . $port . ' - no flows found', LOG_DEBUG);
+            }
         }
 
         return true;
