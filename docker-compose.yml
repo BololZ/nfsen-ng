@@ -1,12 +1,82 @@
-version: "3.9"
-
 services:
-  nfsen:
-    build: .
-    container_name: nfsen-ng
+  nfcapd:
+    command:
+      - '-w'
+      - /data/netflow/rt01
+      - '-S'
+      - '1'
+      - '-z=lz4'
+      - '-Z'
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 64M
+    environment:
+      NVIDIA_VISIBLE_DEVICES: void
+      TZ: Europe/Paris
+    hostname: nfcapd
+    image: bololz/nfcapd:main-20260203
+    platform: linux/amd64
     ports:
-      - "8080:80"
-    volumes:
-      - ./nfsen-ng-data:/data/nfsen-ng
-      - ./nfsen-ng-config:/config/nfsen-ng
+      - mode: ingress
+        protocol: udp
+        published: 19995
+        target: 9995
+    privileged: false
+    pull_policy: missing
     restart: unless-stopped
+    stdin_open: false
+    tty: false
+    user: 'www-data:www-data'
+    volumes:
+      - type: bind
+        source: /mnt/data/nfcapd-data
+        target: /data/netflow/rt01
+        read_only: false
+        bind:
+          propagation: rprivate
+
+  nfsen-ng:
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    environment:
+      NVIDIA_VISIBLE_DEVICES: void
+      TZ: Europe/Paris
+    hostname: nfsen-ng
+    image: bololz/nfsen-ng:main-20260208
+    platform: linux/amd64
+    ports:
+      - mode: ingress
+        protocol: tcp
+        published: 30080
+        target: 80
+    privileged: false
+    pull_policy: missing
+    restart: unless-stopped
+    stdin_open: false
+    tty: false
+    volumes:
+      - type: bind
+        source: /mnt/data/nfsenng-data
+        target: /data/nfsen-ng
+        read_only: false
+        bind:
+          propagation: rprivate
+      - type: bind
+        source: /mnt/data/nfcapd-data
+        target: /data/nfcapd/netflow/rt01
+        read_only: true
+        bind:
+          propagation: rprivate
+      - type: bind
+        source: /mnt/data/nfsenng-config
+        target: /config/nfsen-ng
+        read_only: false
+        bind:
+          propagation: rprivate
+
+volumes: {}
