@@ -475,6 +475,20 @@ class Import {
         // Expected format: ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp (14 fields)
         $flowsFound = false;
         foreach ($input as $i => $line) {
+            // Handle string lines (error messages, warnings, etc.)
+            if (is_string($line)) {
+                // Try to parse as CSV if it looks like CSV data
+                if (str_contains($line, ',')) {
+                    $line = str_getcsv($line, ',');
+                } else {
+                    // Skip non-CSV strings (error messages, etc.)
+                    if ($this->verbose) {
+                        $this->d->log('Skipping non-CSV line: ' . $line, LOG_DEBUG);
+                    }
+                    continue;
+                }
+            }
+            
             // Debug: Log if we get unexpected line types
             if ($this->verbose && (!\is_array($line) || $line instanceof \Countable === false)) {
                 $this->d->log('Unexpected line type in nfdump output: ' . gettype($line), LOG_DEBUG);

@@ -154,7 +154,15 @@ class Nfdump implements Processor {
             $line = str_getcsv($line, ',');
             $temp_line = [];
 
-            if (\count($line) === 1 || str_contains($line[0], 'limit') || str_contains($line[0], 'error')) { // probably an error message or warning. add to command
+            // Check if this is an error/warning message rather than CSV data
+            $isErrorMessage = (\count($line) === 1 && 
+                             (str_contains($line[0], 'limit') || 
+                              str_contains($line[0], 'error') ||
+                              str_contains($line[0], 'catched') ||
+                              str_contains($line[0], 'Queue') ||
+                              str_contains($line[0], 'double-close')));
+            
+            if ($isErrorMessage) { // probably an error message or warning. add to command
                 $output[0] .= ' <br><b>' . $line[0] . '</b>';
                 unset($output[$i]);
 
