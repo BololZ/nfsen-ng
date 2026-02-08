@@ -120,12 +120,9 @@ class Import {
 
                     try {
                         // parse date of file name to compare against last_update
-                        preg_match('/nfcapd\.([0-9]{12})$/', (string) $file, $fileDate);
-                        if (\count($fileDate) !== 2) {
-                            throw new \LengthException('Bad file name format of nfcapd file: ' . $file);
-                        }
-                        $fileDatetime = new \DateTime($fileDate[1]);
-                    } catch (\LengthException $e) {
+                        $timestamp = $this->extractTimestampFromFilename($file);
+                        $fileDatetime = new \DateTime($timestamp);
+                    } catch (\RuntimeException $e) {
                         $this->d->log('Caught exception: ' . $e->getMessage(), LOG_DEBUG);
 
                         continue;
@@ -220,6 +217,16 @@ class Import {
     }
 
     /**
+     * Extract timestamp from nfcapd filename (handles both with and without timezone offset).
+     */
+    private function extractTimestampFromFilename(string $filename): string {
+        if (preg_match('/nfcapd\.([0-9]{12})([+-][0-9]{4})?$/', $filename, $matches)) {
+            return $matches[1];
+        }
+        throw new \RuntimeException('Could not extract timestamp from filename: ' . $filename);
+    }
+
+    /**
      * Check if db is free to update (some databases only allow inserting data at the end).
      *
      * @throws \Exception
@@ -230,12 +237,12 @@ class Import {
         }
 
         // parse capture file's datetime. can't use filemtime as we need the datetime in the file name.
-        $date = [];
-        if (!preg_match('/nfcapd\.([0-9]{12})$/', $file, $date)) {
-            return false;
-        } // nothing to import
-
-        $fileDatetime = new \DateTime($date[1]);
+        try {
+            $timestamp = $this->extractTimestampFromFilename($file);
+            $fileDatetime = new \DateTime($timestamp);
+        } catch (\RuntimeException $e) {
+            return false; // nothing to import
+        }
 
         // get last updated time from database
         $lastUpdateDb = Config::$db->last_update($source, $port);
@@ -299,7 +306,8 @@ class Import {
             return false;
         }
 
-        $date = new \DateTime(substr($statsPath, -12));
+        $timestamp = $this->extractTimestampFromFilename($statsPath);
+        $date = new \DateTime($timestamp);
         $data = [
             'fields' => [],
             'source' => $source,
@@ -385,7 +393,8 @@ class Import {
 
         // parse and turn into usable data
 
-        $date = new \DateTime(substr($statsPath, -12));
+        $timestamp = $this->extractTimestampFromFilename($statsPath);
+        $date = new \DateTime($timestamp);
         $data = [
             'fields' => [
                 'flows' => 0,
