@@ -308,8 +308,26 @@ class Import {
 
         $timestamp = $this->extractTimestampFromFilename($statsPath);
         $date = new \DateTime($timestamp);
+        
+        // Initialize all expected fields to ensure RRD gets complete data structure
         $data = [
-            'fields' => [],
+            'fields' => [
+                'flows' => 0,
+                'flows_tcp' => 0,
+                'flows_udp' => 0,
+                'flows_icmp' => 0,
+                'flows_other' => 0,
+                'packets' => 0,
+                'packets_tcp' => 0,
+                'packets_udp' => 0,
+                'packets_icmp' => 0,
+                'packets_other' => 0,
+                'bytes' => 0,
+                'bytes_tcp' => 0,
+                'bytes_udp' => 0,
+                'bytes_icmp' => 0,
+                'bytes_other' => 0,
+            ],
             'source' => $source,
             'port' => 0,
             'date_iso' => $date->format('Ymd\THis'),
@@ -329,9 +347,21 @@ class Import {
             } // skip invalid lines like error messages
             [$type, $value] = explode(': ', (string) $line);
 
-            // we only need flows/packets/bytes values, the source and the timestamp
-            if (preg_match('/^(flows|packets|bytes)/i', $type)) {
-                $data['fields'][strtolower($type)] = (int) $value;
+            // parse all flow statistics including protocol-specific ones
+            if (preg_match('/^(flows|packets|bytes)(?:_(tcp|udp|icmp|other))?/i', $type, $matches)) {
+                $baseField = strtolower($matches[1]);
+                $protocol = isset($matches[2]) ? strtolower($matches[2]) : '';
+                
+                if ($protocol) {
+                    $fieldName = $baseField . '_' . $protocol;
+                } else {
+                    $fieldName = $baseField;
+                }
+                
+                // Only set the field if it exists in our data structure
+                if (isset($data['fields'][$fieldName])) {
+                    $data['fields'][$fieldName] = (int) $value;
+                }
             }
         }
 
@@ -395,11 +425,25 @@ class Import {
 
         $timestamp = $this->extractTimestampFromFilename($statsPath);
         $date = new \DateTime($timestamp);
+        
+        // Initialize all expected fields to ensure RRD gets complete data structure
         $data = [
             'fields' => [
                 'flows' => 0,
+                'flows_tcp' => 0,
+                'flows_udp' => 0,
+                'flows_icmp' => 0,
+                'flows_other' => 0,
                 'packets' => 0,
+                'packets_tcp' => 0,
+                'packets_udp' => 0,
+                'packets_icmp' => 0,
+                'packets_other' => 0,
                 'bytes' => 0,
+                'bytes_tcp' => 0,
+                'bytes_udp' => 0,
+                'bytes_icmp' => 0,
+                'bytes_other' => 0,
             ],
             'source' => $source,
             'port' => $port,
