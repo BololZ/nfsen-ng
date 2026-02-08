@@ -479,7 +479,7 @@ class Import {
             if (is_string($line)) {
                 // Try to parse as CSV if it looks like CSV data
                 if (str_contains($line, ',')) {
-                    $line = str_getcsv($line, ',');
+                    $line = str_getcsv($line, ',', ',', '"');
                 } else {
                     // Skip non-CSV strings (error messages, etc.)
                     if ($this->verbose) {
@@ -489,12 +489,11 @@ class Import {
                 }
             }
             
-            // Debug: Log if we get unexpected line types
-            if ($this->verbose && (!\is_array($line) || $line instanceof \Countable === false)) {
-                $this->d->log('Unexpected line type in nfdump output: ' . gettype($line), LOG_DEBUG);
-            }
-            
+            // At this point, $line should be an array (either from Nfdump.php or our string parsing)
             if (!\is_array($line) || $line instanceof \Countable === false) {
+                if ($this->verbose) {
+                    $this->d->log('Unexpected line type in nfdump output: ' . gettype($line), LOG_DEBUG);
+                }
                 continue;
             } // skip anything uncountable
             
