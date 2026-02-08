@@ -291,7 +291,11 @@ class Import {
         $nfdump = Nfdump::getInstance();
         $nfdump->reset();
         $nfdump->setOption('-I', null);
-        $nfdump->setOption('-M', $source);
+        // Only set -M option if we're not reading a specific file path
+        // For individual file processing, the source is already in the path
+        if (strpos($statsPath, $source) === false) {
+            $nfdump->setOption('-M', $source);
+        }
         $nfdump->setOption('-r', $statsPath);
 
         if ($this->dbUpdatable($statsPath, $source) === false) {
@@ -304,6 +308,11 @@ class Import {
             $this->d->log('Exception: ' . $e->getMessage(), LOG_WARNING);
 
             return false;
+        }
+
+        // Debug: Log the nfdump output for source processing
+        if ($this->verbose) {
+            $this->d->log('nfdump -I output for source ' . $source . ': ' . json_encode($input), LOG_DEBUG);
         }
 
         $timestamp = $this->extractTimestampFromFilename($statsPath);
@@ -398,12 +407,18 @@ class Import {
 
         if (empty($source)) {
             // if no source is specified, get data for all sources
-            $nfdump->setOption('-M', implode(':', $sources));
+            // Only set -M option if we're not reading a specific file path
+            if (strpos($statsPath, implode(':', $sources)) === false) {
+                $nfdump->setOption('-M', implode(':', $sources));
+            }
             if ($this->dbUpdatable($statsPath, '', $port) === false) {
                 return false;
             }
         } else {
-            $nfdump->setOption('-M', $source);
+            // Only set -M option if we're not reading a specific file path
+            if (strpos($statsPath, $source) === false) {
+                $nfdump->setOption('-M', $source);
+            }
             if ($this->dbUpdatable($statsPath, $source, $port) === false) {
                 return false;
             }
@@ -419,6 +434,11 @@ class Import {
             $this->d->log('Exception: ' . $e->getMessage(), LOG_WARNING);
 
             return false;
+        }
+
+        // Debug: Log the nfdump output for port processing
+        if ($this->verbose) {
+            $this->d->log('nfdump output for port ' . $port . ': ' . json_encode($input), LOG_DEBUG);
         }
 
         // parse and turn into usable data
@@ -452,19 +472,40 @@ class Import {
         ];
 
         // process protocols
-        // headers: ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp
+        // Expected format: ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp (14 fields)
+        $flowsFound = false;
         foreach ($input as $i => $line) {
-            if (!\is_array($line) && $line instanceof \Countable === false) {
+            // Debug: Log if we get unexpected line types
+            if ($this->verbose && (!\is_array($line) || $line instanceof \Countable === false)) {
+                $this->d->log('Unexpected line type in nfdump output: ' . gettype($line), LOG_DEBUG);
+            }
+            
+            if (!\is_array($line) || $line instanceof \Countable === false) {
                 continue;
             } // skip anything uncountable
+            
+            // Debug: Log if field count doesn't match expected
+            if ($this->verbose && \count($line) !== 14) {
+                $this->d->log('Unexpected field count in nfdump output: ' . \count($line) . ' (expected 14)', LOG_DEBUG);
+            }
+            
             if (\count($line) !== 14) {
                 continue;
             } // skip anything invalid
+            
             if ($line[0] === 'ts') {
                 continue;
             } // skip header
 
             $proto = strtolower((string) $line[3]);
+            
+            // Validate that we have numeric values before processing
+            if (!isset($line[5], $line[7], $line[9]) || !is_numeric($line[5]) || !is_numeric($line[7]) || !is_numeric($line[9])) {
+                if ($this->verbose) {
+                    $this->d->log('Invalid numeric values in nfdump output for protocol ' . $proto . ': ' . print_r($line, true), LOG_DEBUG);
+                }
+                continue;
+            }
 
             // add protocol-specific
             $data['fields']['flows_' . $proto] = (int) $line[5];
@@ -475,6 +516,13 @@ class Import {
             $data['fields']['flows'] += (int) $line[5];
             $data['fields']['packets'] += (int) $line[7];
             $data['fields']['bytes'] += (int) $line[9];
+            
+            $flowsFound = true;
+        }
+        
+        // Debug: Log if no flows were found for this port
+        if ($this->verbose && !$flowsFound) {
+            $this->d->log('No flows found for port ' . $port . ' in file ' . basename($statsPath), LOG_DEBUG);
         }
 
         // write to database
