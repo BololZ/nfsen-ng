@@ -9,14 +9,13 @@ fi
 
 # Link settings.php to nfsen-ng directory
 ln -sf /config/nfsen-ng/settings.php /var/www/html/backend/settings/settings.php
+# Link nfsen-ng data
+ln -s /data/nfsen-ng /var/www/html/backend/datasources/data
 
 # Ensure correct ownership
 chown -R www-data:www-data /var/www/html
 chown -R www-data:www-data /data/nfsen-ng
 chown -R www-data:www-data /config/nfsen-ng
-
-# Link nfsen-ng data
-ln -s /data/nfsen-ng /var/www/html/backend/datasources/data
 
 # Execute container command
 exec "$@"
