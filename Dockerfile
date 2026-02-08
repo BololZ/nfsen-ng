@@ -1,49 +1,61 @@
-# Base image: PHP 8.3 + Apache
-FROM php:8.3-apache
+ARG PHP_VERSION=8.4
+ARG DEBIAN_VERSION=trixie
+# Stage 1: Build
+FROM debian:${DEBIAN_VERSION}-slim AS build
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ="UTC"
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    git build-essential clang-19 libtool-bin pkgconf bison flex liblz4-dev libbz2-dev zlib1g-dev librrd-dev
+WORKDIR /build
+# Download and extract source code from GitHub master branch
+RUN git clone https://github.com/phaag/nfdump.git --single-branch -b master && \
+    cd nfdump && \
+    ./autogen.sh && \
+    CC=clang-19 ./configure --prefix=/usr/local/nfdump --enable-maxmind --enable-ja4 && \
+    make && \
+    make install
 
+# Base image
+FROM php:${PHP_VERSION}-apache-${DEBIAN_VERSION} AS final
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ="UTC"
 WORKDIR /var/www/html
 
 # Install dependencies required for nfdump and NFSen-NG
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    git pkg-config rrdtool librrd-dev \
-    flex bison libbz2-dev zlib1g-dev \
-    build-essential autoconf automake libtool \
-    unzip wget curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git rrdtool curl librrd-dev \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /usr/local/nfdump /usr/local/nfdump
 
 # Add nfdump to PATH
 ENV PATH="/usr/local/nfdump/bin:${PATH}"
 
-# Compile and install nfdump 1.7.6
-RUN wget https://github.com/phaag/nfdump/archive/refs/tags/v1.7.6.zip \
-    && unzip v1.7.6.zip \
-    && cd nfdump-1.7.6 \
-    && ./autogen.sh \
-    && ./configure --prefix=/usr/local/nfdump \
-    && make \
-    && make install \
-    && ldconfig \
-    && nfdump -V
+# ld library
+RUN ldconfig
 
 # Enable Apache modules
 RUN a2enmod rewrite deflate headers expires
 
 # Install PHP RRD extension (mbstring already included in base image)
-RUN pecl install rrd \
+RUN pecl install rrd\
     && echo "extension=rrd.so" > /usr/local/etc/php/conf.d/rrd.ini
 
 # Setup volumes for persistent data and configuration
-VOLUME ["/data/nfsen-ng", "/config/nfsen-ng"]
+VOLUME ["/data/nfsen-ng", "/config/nfsen-ng", "/data/nfcapd"]
 
 # Install NFSen-NG
-RUN git clone https://github.com/mbolli/nfsen-ng.git /var/www/html/nfsen-ng \
-    && chmod +x /var/www/html/nfsen-ng/backend/cli.php
+RUN git clone --single-branch -b master https://github.com/mbolli/nfsen-ng.git /var/www/html \
+    && chmod +x /var/www/html/backend/cli.php
 
 # Install composer and backend dependencies
 RUN curl -sS https://getcomposer.org/download/latest-stable/composer.phar -o /usr/local/bin/composer \
     && chmod +x /usr/local/bin/composer \
-    && cd /var/www/html/nfsen-ng \
     && composer install --no-dev
 
 # Copy entrypoint script
@@ -52,5 +64,5 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 80
 
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
