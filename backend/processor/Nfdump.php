@@ -53,12 +53,8 @@ class Nfdump implements Processor {
                     break;
                 }
 
-                // set sources path
-                $this->cfg['option'][$option] = implode(\DIRECTORY_SEPARATOR, [
-                    $this->cfg['env']['profiles-data'],
-                    $this->cfg['env']['profile'],
-                    implode(':', $this->cfg['env']['sources']),
-                ]);
+                // set sources (just the source names, not full path)
+                $this->cfg['option'][$option] = implode(':', $this->cfg['env']['sources']);
 
                 break;
 

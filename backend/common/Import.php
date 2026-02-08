@@ -134,7 +134,7 @@ class Import {
                     }
 
                     // let nfdump parse each nfcapd file
-                    $statsPath = implode(\DIRECTORY_SEPARATOR, \array_slice($scan, 2, 5)) . \DIRECTORY_SEPARATOR . $file;
+                    $statsPath = implode(\DIRECTORY_SEPARATOR, $scan) . \DIRECTORY_SEPARATOR . $file;
 
                     try {
                         // fill source.rrd
