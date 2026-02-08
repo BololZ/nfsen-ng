@@ -50,7 +50,7 @@ RUN pecl install rrd\
 VOLUME ["/data/nfsen-ng", "/config/nfsen-ng", "/data/nfcapd"]
 
 # Install NFSen-NG
-RUN git clone --single-branch -b master https://github.com/mbolli/nfsen-ng.git /var/www/html \
+RUN git clone --single-branch -b master https://github.com/bololz/nfsen-ng.git /var/www/html \
     && chmod +x /var/www/html/backend/cli.php
 
 # Install composer and backend dependencies
