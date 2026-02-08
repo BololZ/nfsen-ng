@@ -174,6 +174,9 @@ class Import {
         try {
             $this->d->log('Importing file ' . $file . ' (' . $source . '), last=' . (int) $last, LOG_INFO);
 
+            // Ensure RRD files exist before writing data
+            $this->ensureRrdFilesExist($source);
+
             // fill source.rrd
             $this->writeSourceData($source, $file);
 
@@ -188,6 +191,31 @@ class Import {
             }
         } catch (\Exception $e) {
             $this->d->log('Caught exception: ' . $e->getMessage(), LOG_WARNING);
+        }
+    }
+
+    /**
+     * Ensure RRD files exist for the given source and all configured ports.
+     */
+    private function ensureRrdFilesExist(string $source): void {
+        try {
+            // Create main source RRD file
+            if (!file_exists(Config::$db->get_data_path($source))) {
+                $this->d->log('Creating RRD file for source: ' . $source, LOG_INFO);
+                Config::$db->create($source);
+            }
+
+            // Create port-specific RRD files if ports are configured
+            $ports = Config::$cfg['general']['ports'];
+            foreach ($ports as $port) {
+                $rrdPath = Config::$db->get_data_path($source, $port);
+                if (!file_exists($rrdPath)) {
+                    $this->d->log('Creating RRD file for source:port ' . $source . ':' . $port, LOG_INFO);
+                    Config::$db->create($source, $port);
+                }
+            }
+        } catch (\Exception $e) {
+            $this->d->log('Error ensuring RRD files exist: ' . $e->getMessage(), LOG_WARNING);
         }
     }
 

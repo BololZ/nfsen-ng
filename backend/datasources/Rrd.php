@@ -206,6 +206,17 @@ Continuing import with existing structure...
 WARNING;
             }
 
+            // Allow import to continue with existing structure if not in force mode
+            // This prevents breaking existing installations when changing NFSEN_IMPORT_YEARS
+            if (getenv('NFSEN_FORCE_IMPORT') !== 'true') {
+                return [
+                    'valid' => true, // Allow continuation with existing structure
+                    'message' => $message . ' - Continuing with existing structure',
+                    'expected_rows' => $expectedDailyRows,
+                    'actual_rows' => $actualRows,
+                ];
+            }
+
             return [
                 'valid' => false,
                 'message' => $message,
